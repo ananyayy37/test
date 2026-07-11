@@ -217,9 +217,13 @@
       <div class="qtopic">Current bank</div>
       <div id="bankSummary" class="stat-row"></div>
       <div id="bankEmpty" class="bank-empty">No questions yet — process a zip above to build your bank.</div>
-      <div style="margin-top:14px;">
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button class="secondary" id="exportBankBtn">Export bank as bank.json</button>
+        <button class="secondary" id="importBankBtn">Import bank.json</button>
+        <input type="file" id="importBankInput" accept=".json" class="hidden">
         <button class="ghost" id="clearBankBtn">Clear entire bank</button>
       </div>
+      <p style="color:var(--muted);font-size:12px;margin-top:10px;">Export bank.json here, then drop it into the standalone GitHub Pages build to practice offline with no API dependency.</p>
     </div>
   </div>
 
@@ -455,6 +459,31 @@ async function refreshBankView(){
   }
   refreshSetupCounts();
 }
+document.getElementById('exportBankBtn').addEventListener('click', async ()=>{
+  const bank = await bankGet();
+  if(bank.length===0){ toast('Bank is empty — nothing to export'); return; }
+  const blob = new Blob([JSON.stringify(bank,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bank.json';
+  a.click();
+});
+document.getElementById('importBankBtn').addEventListener('click', ()=>document.getElementById('importBankInput').click());
+document.getElementById('importBankInput').addEventListener('change', async e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  try{
+    const text = await f.text();
+    const incoming = JSON.parse(text);
+    if(!Array.isArray(incoming)) throw new Error('not an array');
+    const existing = await bankGet();
+    const existingIds = new Set(existing.map(q=>q.id));
+    const merged = existing.concat(incoming.filter(q=>!existingIds.has(q.id)));
+    await bankSet(merged);
+    toast(incoming.length + ' questions imported');
+    refreshBankView();
+  }catch(err){ toast('Could not read that file as a valid bank.json'); }
+});
 document.getElementById('clearBankBtn').addEventListener('click', async ()=>{
   if(!confirm('Clear your entire question bank? This cannot be undone.')) return;
   await bankSet([]);
