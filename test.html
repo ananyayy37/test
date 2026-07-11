@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OA Prep Bench</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --bg:#0B0F0E;
+    --surface:#121917;
+    --surface2:#1A2320;
+    --border:#26332F;
+    --text:#EDEFEE;
+    --muted:#8A9891;
+    --accent:#4FD1AE;
+    --accent-dim:#274a41;
+    --amber:#E8A23D;
+    --red:#E2604F;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+  }
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+
+  .shell{max-width:1100px;margin:0 auto;padding:28px 20px 60px;}
+
+  header.top{
+    display:flex;align-items:center;justify-content:space-between;
+    padding-bottom:20px;border-bottom:1px solid var(--border);margin-bottom:24px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);}
+  .brand h1{font-size:18px;margin:0;letter-spacing:0.02em;}
+  .brand .sub{color:var(--muted);font-size:12px;margin-top:2px;}
+
+  .tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px;}
+  .tab{
+    padding:8px 16px;border-radius:6px;font-size:13px;cursor:pointer;color:var(--muted);
+    border:none;background:transparent;font-family:inherit;font-weight:500;
+  }
+  .tab.active{background:var(--accent-dim);color:var(--accent);}
+
+  .view{display:none;}
+  .view.active{display:block;}
+
+  /* fiducial-cornered card, PCB-style alignment marks */
+  .card{
+    position:relative;background:var(--surface);border:1px solid var(--border);
+    border-radius:4px;padding:24px;margin-bottom:16px;
+  }
+  .card::before,.card::after,.card .c3,.card .c4{content:"";position:absolute;width:14px;height:14px;}
+  .card::before{top:-1px;left:-1px;border-top:2px solid var(--accent);border-left:2px solid var(--accent);}
+  .card::after{top:-1px;right:-1px;border-top:2px solid var(--accent);border-right:2px solid var(--accent);}
+  .card .c3{bottom:-1px;left:-1px;border-bottom:2px solid var(--accent);border-left:2px solid var(--accent);}
+  .card .c4{bottom:-1px;right:-1px;border-bottom:2px solid var(--accent);border-right:2px solid var(--accent);}
+
+  .dropzone{
+    border:1.5px dashed var(--border);border-radius:6px;padding:36px 20px;text-align:center;
+    color:var(--muted);cursor:pointer;transition:border-color .15s,color .15s;
+  }
+  .dropzone:hover,.dropzone.drag{border-color:var(--accent);color:var(--text);}
+  .dropzone .icon{font-size:22px;margin-bottom:8px;}
+
+  button.primary{
+    background:var(--accent);color:#0B0F0E;border:none;border-radius:6px;
+    padding:10px 20px;font-weight:600;font-size:14px;cursor:pointer;font-family:inherit;
+  }
+  button.primary:disabled{background:var(--surface2);color:var(--muted);cursor:not-allowed;}
+  button.secondary{
+    background:transparent;color:var(--text);border:1px solid var(--border);border-radius:6px;
+    padding:10px 18px;font-size:14px;cursor:pointer;font-family:inherit;
+  }
+  button.secondary:hover{border-color:var(--accent);}
+  button.ghost{background:transparent;border:none;color:var(--muted);cursor:pointer;font-family:inherit;font-size:13px;}
+
+  .progress-track{background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;margin:14px 0;}
+  .progress-fill{background:var(--accent);height:100%;width:0%;transition:width .2s;}
+
+  .stat-row{display:flex;gap:24px;margin-top:6px;flex-wrap:wrap;}
+  .stat{font-size:13px;color:var(--muted);}
+  .stat b{color:var(--text);font-family:'JetBrains Mono',monospace;}
+
+  .bank-empty{color:var(--muted);font-size:14px;text-align:center;padding:30px 0;}
+
+  /* --- test view --- */
+  .test-header{
+    display:flex;align-items:center;justify-content:space-between;
+    background:var(--surface);border:1px solid var(--border);border-radius:6px;
+    padding:14px 20px;margin-bottom:16px;
+  }
+  .timer{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;letter-spacing:0.03em;color:var(--accent);}
+  .timer.warn{color:var(--amber);}
+  .timer.crit{color:var(--red);animation:pulse 1s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+  .timer-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px;}
+
+  .test-layout{display:grid;grid-template-columns:220px 1fr;gap:16px;}
+  @media (max-width:760px){.test-layout{grid-template-columns:1fr;} .nav-grid{order:2;}}
+
+  .nav-panel{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:16px;align-self:start;}
+  .nav-panel h4{margin:0 0 10px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:600;}
+  .nav-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
+  .nq{
+    width:100%;aspect-ratio:1;border-radius:4px;border:1px solid var(--border);background:var(--surface2);
+    color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .nq.answered{background:var(--accent-dim);color:var(--accent);border-color:var(--accent);}
+  .nq.marked{background:#4a3216;color:var(--amber);border-color:var(--amber);}
+  .nq.current{outline:2px solid var(--text);outline-offset:1px;}
+  .legend{display:flex;flex-direction:column;gap:6px;margin-top:14px;font-size:11px;color:var(--muted);}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .swatch{width:9px;height:9px;border-radius:2px;display:inline-block;}
+
+  .qtopic{font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:8px;}
+  .qtext{font-size:16px;line-height:1.6;margin-bottom:20px;white-space:pre-wrap;}
+  .opt{
+    display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid var(--border);
+    border-radius:6px;margin-bottom:8px;cursor:pointer;font-size:14px;line-height:1.5;
+  }
+  .opt:hover{border-color:var(--accent);}
+  .opt.selected{border-color:var(--accent);background:var(--accent-dim);}
+  .opt .letter{font-family:'JetBrains Mono',monospace;color:var(--muted);font-weight:600;flex-shrink:0;}
+  .opt.selected .letter{color:var(--accent);}
+  textarea.openans{
+    width:100%;min-height:90px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+    color:var(--text);font-family:inherit;font-size:14px;padding:12px;resize:vertical;
+  }
+
+  .qcontrols{display:flex;justify-content:space-between;align-items:center;margin-top:20px;flex-wrap:wrap;gap:10px;}
+  .qcontrols .left,.qcontrols .right{display:flex;gap:8px;}
+
+  /* results */
+  .score-hero{text-align:center;padding:32px 20px;}
+  .score-hero .num{font-family:'JetBrains Mono',monospace;font-size:56px;font-weight:700;color:var(--accent);}
+  .score-hero .label{color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin-top:6px;}
+
+  .review-row{
+    border:1px solid var(--border);border-radius:6px;padding:14px 16px;margin-bottom:10px;
+    display:flex;gap:12px;align-items:flex-start;
+  }
+  .review-row .badge{
+    width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-family:'JetBrains Mono',monospace;margin-top:2px;
+  }
+  .badge.ok{background:var(--accent-dim);color:var(--accent);}
+  .badge.no{background:#4a2320;color:var(--red);}
+  .badge.qm{background:var(--surface2);color:var(--muted);}
+  .review-row .rtext{font-size:14px;flex:1;}
+  .review-row .rmeta{font-size:12px;color:var(--muted);margin-top:4px;}
+  .review-row .rmeta b{color:var(--text);}
+
+  .hidden{display:none !important;}
+  .toast{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface2);
+    border:1px solid var(--border);border-radius:6px;padding:10px 18px;font-size:13px;color:var(--text);z-index:50;
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="top">
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <h1 class="display">OA Prep Bench</h1>
+        <div class="sub mono">timed practice · TI &amp; hardware-style OAs</div>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-view="bank">Question Bank</button>
+      <button class="tab" data-view="test">Take Test</button>
+    </div>
+  </header>
+
+  <!-- BANK VIEW -->
+  <div class="view active" id="view-bank">
+    <div class="card">
+      <div class="c3"></div><div class="c4"></div>
+      <div class="qtopic">Add questions</div>
+      <p style="color:var(--muted);font-size:13px;margin-top:-6px;">
+        Upload a .zip of question screenshots (jpg/png). Each image gets read and turned into a structured question automatically. PDFs aren't parsed yet — export PDF pages as images first if needed.
+      </p>
+      <div class="dropzone" id="dropzone">
+        <div class="icon">&#8203;⬆</div>
+        <div><b id="dzLabel">Drop a .zip here, or click to choose one</b></div>
+        <div style="font-size:12px;margin-top:4px;">.zip containing .jpg / .jpeg / .png</div>
+        <input type="file" id="fileInput" accept=".zip" class="hidden">
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;">
+        <div id="selectedFileName" style="font-size:13px;color:var(--muted);"></div>
+        <button class="primary" id="processBtn" disabled>Process zip</button>
+      </div>
+      <div id="progressWrap" class="hidden">
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="stat-row">
+          <div class="stat">Images: <b id="statTotal">0</b></div>
+          <div class="stat">Parsed: <b id="statDone">0</b></div>
+          <div class="stat">Questions found: <b id="statFound">0</b></div>
+          <div class="stat">Skipped: <b id="statSkipped">0</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="c3"></div><div class="c4"></div>
+      <div class="qtopic">Current bank</div>
+      <div id="bankSummary" class="stat-row"></div>
+      <div id="bankEmpty" class="bank-empty">No questions yet — process a zip above to build your bank.</div>
+      <div style="margin-top:14px;">
+        <button class="ghost" id="clearBankBtn">Clear entire bank</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TEST SETUP / TAKING VIEW -->
+  <div class="view" id="view-test">
+
+    <div class="card" id="testSetupCard">
+      <div class="c3"></div><div class="c4"></div>
+      <div class="qtopic">New test</div>
+      <p style="color:var(--muted);font-size:13px;">40 random questions from your bank · 60:00 on the clock · auto-submits at zero.</p>
+      <div class="stat-row" style="margin-bottom:16px;">
+        <div class="stat">Bank size: <b id="setupBankSize">0</b></div>
+        <div class="stat">Questions this test: <b id="setupTestSize">0</b></div>
+      </div>
+      <button class="primary" id="startTestBtn" disabled>Start test</button>
+    </div>
+
+    <div id="testRunning" class="hidden">
+      <div class="test-header">
+        <div>
+          <div class="timer-label">Time remaining</div>
+          <div class="timer mono" id="timerDisplay">60:00</div>
+        </div>
+        <button class="secondary" id="submitBtn">Submit test</button>
+      </div>
+
+      <div class="test-layout">
+        <div class="nav-panel">
+          <h4>Questions</h4>
+          <div class="nav-grid" id="navGrid"></div>
+          <div class="legend">
+            <span><span class="swatch" style="background:var(--surface2);border:1px solid var(--border);"></span>Unanswered</span>
+            <span><span class="swatch" style="background:var(--accent-dim);"></span>Answered</span>
+            <span><span class="swatch" style="background:#4a3216;"></span>Marked for review</span>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:0;">
+          <div class="c3"></div><div class="c4"></div>
+          <div class="qtopic" id="qTopicLabel">Topic</div>
+          <div class="qtext" id="qTextLabel"></div>
+          <div id="optsWrap"></div>
+          <div class="qcontrols">
+            <div class="left">
+              <button class="secondary" id="prevBtn">&larr; Prev</button>
+              <button class="secondary" id="nextBtn">Next &rarr;</button>
+            </div>
+            <div class="right">
+              <button class="ghost" id="markBtn">Mark for review</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="testResults" class="hidden">
+      <div class="card">
+        <div class="c3"></div><div class="c4"></div>
+        <div class="score-hero">
+          <div class="num mono" id="scoreNum">0/0</div>
+          <div class="label">scored (questions without a known answer key are excluded)</div>
+        </div>
+        <div style="text-align:center;">
+          <button class="primary" id="retakeBtn">Start new test</button>
+        </div>
+      </div>
+      <div id="reviewList"></div>
+    </div>
+
+  </div>
+
+</div>
+<div id="toast" class="toast hidden"></div>
+
+<script>
+// ---------- storage helpers ----------
+async function bankGet(){
+  try{
+    const r = await window.storage.get('question-bank');
+    return r ? JSON.parse(r.value) : [];
+  }catch(e){ return []; }
+}
+async function bankSet(arr){
+  try{ await window.storage.set('question-bank', JSON.stringify(arr)); }catch(e){ console.error('storage save failed', e); }
+}
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.remove('hidden');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.add('hidden'), 2600);
+}
+
+// ---------- tabs ----------
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.getElementById('view-'+tab.dataset.view).classList.add('active');
+    if(tab.dataset.view==='test') refreshSetupCounts();
+  });
+});
+
+// ---------- zip upload ----------
+let selectedZipFile = null;
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+dropzone.addEventListener('click', ()=>fileInput.click());
+dropzone.addEventListener('dragover', e=>{e.preventDefault(); dropzone.classList.add('drag');});
+dropzone.addEventListener('dragleave', ()=>dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e=>{
+  e.preventDefault(); dropzone.classList.remove('drag');
+  if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); });
+function handleFile(f){
+  if(!f.name.toLowerCase().endsWith('.zip')){ toast('Please choose a .zip file'); return; }
+  selectedZipFile = f;
+  document.getElementById('selectedFileName').textContent = f.name + '  (' + Math.round(f.size/1024) + ' KB)';
+  document.getElementById('processBtn').disabled = false;
+}
+
+document.getElementById('processBtn').addEventListener('click', processZip);
+
+function extFromName(name){
+  const m = name.toLowerCase().match(/\.(jpe?g|png)$/);
+  return m ? m[1].replace('jpg','jpeg') : null;
+}
+
+async function callVisionExtract(base64, mediaType){
+  const sys = "You extract exam/interview-test questions from a screenshot of a question paper or online-assessment screen. Return ONLY valid JSON — no markdown fences, no commentary. Output a JSON array. Each element: {\"question\": string (full question text, include any code/circuit description in words), \"type\": \"mcq\" or \"open\", \"options\": {\"A\":string,\"B\":string,...} (omit if type is open), \"answer\": single letter like \"A\" ONLY if the image visibly indicates/marks/states the correct answer, otherwise null, \"topic\": short 2-4 word topic tag e.g. 'Digital Logic', 'C Programming', 'Analog Circuits', 'Signals & Systems', 'Aptitude'}. If the image has no readable question, return []. If an image shows multiple questions, return multiple array elements.";
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1000,
+      system: sys,
+      messages: [{
+        role:"user",
+        content:[
+          {type:"image", source:{type:"base64", media_type: "image/"+mediaType, data: base64}},
+          {type:"text", text:"Extract the question(s) from this image as the JSON array described."}
+        ]
+      }]
+    })
+  });
+  const data = await res.json();
+  const textBlock = (data.content||[]).find(b=>b.type==='text');
+  if(!textBlock) return [];
+  let clean = textBlock.text.trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+  try{
+    const parsed = JSON.parse(clean);
+    return Array.isArray(parsed) ? parsed : [];
+  }catch(e){ return []; }
+}
+
+async function processZip(){
+  if(!selectedZipFile) return;
+  const processBtn = document.getElementById('processBtn');
+  processBtn.disabled = true;
+  const progressWrap = document.getElementById('progressWrap');
+  progressWrap.classList.remove('hidden');
+
+  const zip = await JSZip.loadAsync(selectedZipFile);
+  const entries = Object.values(zip.files).filter(f=>!f.dir && extFromName(f.name));
+
+  document.getElementById('statTotal').textContent = entries.length;
+  let done=0, found=0, skipped=0;
+  const bank = await bankGet();
+
+  const CONCURRENCY = 4;
+  let idx = 0;
+  async function worker(){
+    while(idx < entries.length){
+      const myIdx = idx++;
+      const entry = entries[myIdx];
+      try{
+        const base64 = await entry.async('base64');
+        const mediaType = extFromName(entry.name);
+        const qs = await callVisionExtract(base64, mediaType);
+        qs.forEach(q=>{
+          if(q && q.question){
+            bank.push({
+              id: 'q_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+              question: q.question,
+              type: q.type==='mcq' ? 'mcq' : 'open',
+              options: q.options || null,
+              answer: q.answer || null,
+              topic: q.topic || 'General',
+              source: entry.name
+            });
+            found++;
+          }
+        });
+      }catch(e){ skipped++; }
+      done++;
+      document.getElementById('statDone').textContent = done;
+      document.getElementById('statFound').textContent = found;
+      document.getElementById('statSkipped').textContent = skipped;
+      document.getElementById('progressFill').style.width = Math.round(100*done/entries.length)+'%';
+    }
+  }
+  const workers = [];
+  for(let i=0;i<CONCURRENCY;i++) workers.push(worker());
+  await Promise.all(workers);
+
+  await bankSet(bank);
+  toast(found + ' questions added to your bank');
+  processBtn.disabled = false;
+  selectedZipFile = null;
+  document.getElementById('selectedFileName').textContent = '';
+  refreshBankView();
+}
+
+// ---------- bank view ----------
+async function refreshBankView(){
+  const bank = await bankGet();
+  const summary = document.getElementById('bankSummary');
+  const empty = document.getElementById('bankEmpty');
+  if(bank.length===0){
+    summary.innerHTML=''; empty.classList.remove('hidden');
+  } else {
+    empty.classList.add('hidden');
+    const topics = {};
+    bank.forEach(q=>{ topics[q.topic] = (topics[q.topic]||0)+1; });
+    const mcq = bank.filter(q=>q.type==='mcq').length;
+    let html = '<div class="stat">Total questions: <b>'+bank.length+'</b></div>';
+    html += '<div class="stat">MCQ: <b>'+mcq+'</b></div>';
+    html += '<div class="stat">Open-ended: <b>'+(bank.length-mcq)+'</b></div>';
+    html += '<div class="stat">Topics: <b>'+Object.keys(topics).length+'</b></div>';
+    summary.innerHTML = html;
+  }
+  refreshSetupCounts();
+}
+document.getElementById('clearBankBtn').addEventListener('click', async ()=>{
+  if(!confirm('Clear your entire question bank? This cannot be undone.')) return;
+  await bankSet([]);
+  refreshBankView();
+  toast('Bank cleared');
+});
+
+// ---------- test setup ----------
+async function refreshSetupCounts(){
+  const bank = await bankGet();
+  document.getElementById('setupBankSize').textContent = bank.length;
+  const testSize = Math.min(40, bank.length);
+  document.getElementById('setupTestSize').textContent = testSize;
+  document.getElementById('startTestBtn').disabled = testSize===0;
+}
+
+let test = null; // {questions, answers, marked, idx, timeLeft, timerHandle}
+
+document.getElementById('startTestBtn').addEventListener('click', async ()=>{
+  const bank = await bankGet();
+  const shuffled = [...bank].sort(()=>Math.random()-0.5);
+  const questions = shuffled.slice(0, Math.min(40, bank.length));
+  test = { questions, answers:{}, marked:new Set(), idx:0, timeLeft: 60*60 };
+
+  document.getElementById('testSetupCard').classList.add('hidden');
+  document.getElementById('testResults').classList.add('hidden');
+  document.getElementById('testRunning').classList.remove('hidden');
+
+  buildNavGrid();
+  renderQuestion();
+  startTimer();
+});
+
+function startTimer(){
+  updateTimerDisplay();
+  clearInterval(test.timerHandle);
+  test.timerHandle = setInterval(()=>{
+    test.timeLeft--;
+    updateTimerDisplay();
+    if(test.timeLeft<=0){ clearInterval(test.timerHandle); submitTest(); }
+  },1000);
+}
+function updateTimerDisplay(){
+  const m = Math.max(0,Math.floor(test.timeLeft/60));
+  const s = Math.max(0,test.timeLeft%60);
+  const el = document.getElementById('timerDisplay');
+  el.textContent = String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  el.classList.remove('warn','crit');
+  if(test.timeLeft<=60) el.classList.add('crit');
+  else if(test.timeLeft<=300) el.classList.add('warn');
+}
+
+function buildNavGrid(){
+  const grid = document.getElementById('navGrid');
+  grid.innerHTML='';
+  test.questions.forEach((q,i)=>{
+    const btn = document.createElement('button');
+    btn.className='nq'; btn.textContent = i+1;
+    btn.addEventListener('click', ()=>{ test.idx=i; renderQuestion(); });
+    grid.appendChild(btn);
+  });
+}
+function refreshNavGrid(){
+  [...document.getElementById('navGrid').children].forEach((btn,i)=>{
+    btn.classList.remove('answered','marked','current');
+    const q = test.questions[i];
+    if(test.answers[q.id]!==undefined && test.answers[q.id]!=='') btn.classList.add('answered');
+    if(test.marked.has(q.id)) btn.classList.add('marked');
+    if(i===test.idx) btn.classList.add('current');
+  });
+}
+
+function renderQuestion(){
+  const q = test.questions[test.idx];
+  document.getElementById('qTopicLabel').textContent = q.topic + '  ·  Question ' + (test.idx+1) + ' of ' + test.questions.length;
+  document.getElementById('qTextLabel').textContent = q.question;
+  const wrap = document.getElementById('optsWrap');
+  wrap.innerHTML='';
+  if(q.type==='mcq' && q.options){
+    Object.keys(q.options).forEach(letter=>{
+      const div = document.createElement('div');
+      div.className='opt' + (test.answers[q.id]===letter ? ' selected':'');
+      div.innerHTML = '<span class="letter">'+letter+'</span><span>'+q.options[letter]+'</span>';
+      div.addEventListener('click', ()=>{
+        test.answers[q.id] = letter;
+        renderQuestion();
+        refreshNavGrid();
+      });
+      wrap.appendChild(div);
+    });
+  } else {
+    const ta = document.createElement('textarea');
+    ta.className='openans';
+    ta.placeholder='Type your answer / working here (self-graded)';
+    ta.value = test.answers[q.id] || '';
+    ta.addEventListener('input', ()=>{ test.answers[q.id]=ta.value; refreshNavGrid(); });
+    wrap.appendChild(ta);
+  }
+  document.getElementById('markBtn').textContent = test.marked.has(q.id) ? 'Unmark review' : 'Mark for review';
+  refreshNavGrid();
+}
+
+document.getElementById('prevBtn').addEventListener('click', ()=>{ if(test.idx>0){test.idx--; renderQuestion();} });
+document.getElementById('nextBtn').addEventListener('click', ()=>{ if(test.idx<test.questions.length-1){test.idx++; renderQuestion();} });
+document.getElementById('markBtn').addEventListener('click', ()=>{
+  const q = test.questions[test.idx];
+  if(test.marked.has(q.id)) test.marked.delete(q.id); else test.marked.add(q.id);
+  renderQuestion();
+});
+document.getElementById('submitBtn').addEventListener('click', ()=>{
+  if(confirm('Submit test now?')) submitTest();
+});
+document.getElementById('retakeBtn').addEventListener('click', ()=>{
+  document.getElementById('testResults').classList.add('hidden');
+  document.getElementById('testSetupCard').classList.remove('hidden');
+  refreshSetupCounts();
+});
+
+function submitTest(){
+  clearInterval(test.timerHandle);
+  document.getElementById('testRunning').classList.add('hidden');
+  document.getElementById('testResults').classList.remove('hidden');
+
+  let correct=0, scorable=0;
+  const reviewList = document.getElementById('reviewList');
+  reviewList.innerHTML='';
+  test.questions.forEach((q,i)=>{
+    const given = test.answers[q.id];
+    let badgeClass='qm', badgeText='?';
+    if(q.type==='mcq' && q.answer){
+      scorable++;
+      if(given===q.answer){ correct++; badgeClass='ok'; badgeText='✓'; }
+      else { badgeClass='no'; badgeText='✕'; }
+    }
+    const row = document.createElement('div');
+    row.className='review-row';
+    let metaHtml = '';
+    if(q.type==='mcq'){
+      metaHtml = '<div class="rmeta">Your answer: <b>'+(given||'—')+'</b>' +
+        (q.answer ? '  ·  Correct: <b>'+q.answer+'</b>' : '  ·  No answer key detected — review manually') + '</div>';
+    } else {
+      metaHtml = '<div class="rmeta">Your answer: <b>'+(given? 'recorded':'—')+'</b> · open-ended, self-grade</div>';
+    }
+    row.innerHTML = '<div class="badge '+badgeClass+'">'+badgeText+'</div>' +
+      '<div class="rtext"><b>'+(i+1)+'. </b>'+q.question + metaHtml + '</div>';
+    reviewList.appendChild(row);
+  });
+  document.getElementById('scoreNum').textContent = correct + '/' + (scorable||test.questions.length) + (scorable? '' : ' (no auto-gradable answers)');
+}
+
+// ---------- init ----------
+refreshBankView();
+</script>
+</body>
+</html>
