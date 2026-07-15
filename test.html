@@ -233,7 +233,7 @@
     <div class="card" id="testSetupCard">
       <div class="c3"></div><div class="c4"></div>
       <div class="qtopic">New test</div>
-      <p style="color:var(--muted);font-size:13px;">40 random questions from your bank · 60:00 on the clock · auto-submits at zero.</p>
+      <p style="color:var(--muted);font-size:13px;">30 random questions from your bank · 60:00 on the clock · auto-submits at zero.</p>
       <div class="stat-row" style="margin-bottom:16px;">
         <div class="stat">Bank size: <b id="setupBankSize">0</b></div>
         <div class="stat">Questions this test: <b id="setupTestSize">0</b></div>
@@ -461,12 +461,31 @@ async function refreshBankView(){
 }
 document.getElementById('exportBankBtn').addEventListener('click', async ()=>{
   const bank = await bankGet();
-  if(bank.length===0){ toast('Bank is empty — nothing to export'); return; }
-  const blob = new Blob([JSON.stringify(bank,null,2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'bank.json';
-  a.click();
+  if(bank.length===0){ toast('Bank is empty — process a zip first'); return; }
+  try{
+    const json = JSON.stringify(bank,null,2);
+    const blob = new Blob([json], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'bank.json';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 3000);
+    toast('Downloading bank.json (' + bank.length + ' questions)');
+  }catch(err){
+    // fallback: open the JSON in a new tab so it can be saved manually
+    const json = JSON.stringify(bank,null,2);
+    const win = window.open();
+    if(win){
+      win.document.write('<pre>'+json.replace(/</g,'&lt;')+'</pre>');
+      toast('Download blocked — opened JSON in a new tab, save it manually (Ctrl/Cmd+S)');
+    } else {
+      toast('Download failed and popup was blocked. Try allowing popups for this page.');
+    }
+  }
 });
 document.getElementById('importBankBtn').addEventListener('click', ()=>document.getElementById('importBankInput').click());
 document.getElementById('importBankInput').addEventListener('change', async e=>{
@@ -495,7 +514,7 @@ document.getElementById('clearBankBtn').addEventListener('click', async ()=>{
 async function refreshSetupCounts(){
   const bank = await bankGet();
   document.getElementById('setupBankSize').textContent = bank.length;
-  const testSize = Math.min(40, bank.length);
+  const testSize = Math.min(30, bank.length);
   document.getElementById('setupTestSize').textContent = testSize;
   document.getElementById('startTestBtn').disabled = testSize===0;
 }
@@ -505,7 +524,7 @@ let test = null; // {questions, answers, marked, idx, timeLeft, timerHandle}
 document.getElementById('startTestBtn').addEventListener('click', async ()=>{
   const bank = await bankGet();
   const shuffled = [...bank].sort(()=>Math.random()-0.5);
-  const questions = shuffled.slice(0, Math.min(40, bank.length));
+  const questions = shuffled.slice(0, Math.min(30, bank.length));
   test = { questions, answers:{}, marked:new Set(), idx:0, timeLeft: 60*60 };
 
   document.getElementById('testSetupCard').classList.add('hidden');
